@@ -1,19 +1,25 @@
 import polars as pl
 import numpy as np
+import matplotlib
+matplotlib.use('Agg')  # Use non-interactive backend
 import matplotlib.pyplot as plt
 import seaborn as sns
 from umap import UMAP
+from sklearn.decomposition import PCA
+from sklearn.preprocessing import LabelEncoder
 from tqdm import tqdm
 import torch
 from transformers import AutoModel, AutoTokenizer
 import os
 import hashlib
+from typing import Literal, Optional
+from utils.data import get_dataset, DATASET
 
 
 class CodeEmbeddingVisualizer:
     """Class to handle embedding and visualization of code datasets."""
     
-    def __init__(self, data_path, cache_dir='cache'):
+    def __init__(self,cache_dir='cache'):
         """
         Initialize the visualizer.
         
@@ -25,8 +31,8 @@ class CodeEmbeddingVisualizer:
         sns.set(style="whitegrid")
         plt.rcParams["figure.figsize"] = (12, 10)
         
-        self.data_path = data_path
         self.cache_dir = cache_dir
+        self.plot_dir = 'plots'
         self.df = None
         self.embeddings = None
         self.reduced_embeddings_3d = None
@@ -35,11 +41,12 @@ class CodeEmbeddingVisualizer:
         
         # Create cache directory if it doesn't exist
         os.makedirs(cache_dir, exist_ok=True)
+        os.makedirs(self.plot_dir, exist_ok=True)
         
     def load_dataset(self):
         """Load the dataset and compute a hash for caching."""
-        print(f"Loading dataset from {self.data_path}")
-        self.df = pl.read_parquet(self.data_path)
+        print(f"Loading dataset from {DATASET}")
+        self.df = get_dataset()
         
         print(f"Dataset shape: {self.df.shape}")
         print(f"Number of unique languages: {self.df['language_name'].n_unique()}")
@@ -67,6 +74,10 @@ class CodeEmbeddingVisualizer:
             tokenizer = AutoTokenizer.from_pretrained("microsoft/codebert-base")
             model = AutoModel.from_pretrained("microsoft/codebert-base")
             device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
+            if hasattr(torch, 'set_float32_matmul_precision'):
+                torch.set_float32_matmul_precision('high')
+            
             model = model.to(device)
             model.compile()
             model.eval()
@@ -113,225 +124,337 @@ class CodeEmbeddingVisualizer:
         
         return embedding
     
-    def apply_umap_3d(self):
-        """Apply UMAP dimensionality reduction to get 3D embeddings."""
-        umap_cache_file = os.path.join(self.cache_dir, f"umap_3d_{self.data_hash}.npy")
+    def reduce_dimensions(
+        self,
+        n_components: int = 2,
+        method: Literal['umap', 'pca'] = 'umap',
+        supervised: bool = False,
+        target_column: Optional[str] = None,
+        **kwargs
+    ) -> np.ndarray:
+        """
+        Apply dimensionality reduction to embeddings.
         
-        if os.path.exists(umap_cache_file):
-            print(f"Loading 3D UMAP results from cache: {umap_cache_file}")
-            self.reduced_embeddings_3d = np.load(umap_cache_file)
-        else:
-            print("Computing 3D UMAP dimensionality reduction...")
-            reducer = UMAP(n_neighbors=15, n_components=3, min_dist=0.1, metric='cosine')
-            self.reduced_embeddings_3d = reducer.fit_transform(self.embeddings)
-            print(f"Saving 3D UMAP results to cache: {umap_cache_file}")
-            np.save(umap_cache_file, self.reduced_embeddings_3d)
+        Args:
+            n_components: Number of dimensions to reduce to (2 or 3)
+            method: Dimensionality reduction method ('umap' or 'pca')
+            supervised: Whether to use supervised reduction (only for UMAP)
+            target_column: Column to use for supervised reduction
+            **kwargs: Additional arguments to pass to the reducer
             
-        return self.reduced_embeddings_3d
-    
-    def apply_umap_2d(self):
-        """Apply UMAP dimensionality reduction to get 2D embeddings."""
-        umap_2d_cache_file = os.path.join(self.cache_dir, f"umap_2d_{self.data_hash}.npy")
+        Returns:
+            numpy array: Reduced embeddings
+        """
+        if n_components not in [2, 3]:
+            raise ValueError("n_components must be 2 or 3")
+            
+        cache_file = os.path.join(
+            self.cache_dir,
+            f"{method}_{'supervised' if supervised else 'unsupervised'}_{n_components}d_{self.data_hash}.npy"
+        )
         
-        if os.path.exists(umap_2d_cache_file):
-            print(f"Loading 2D UMAP results from cache: {umap_2d_cache_file}")
-            self.reduced_embeddings_2d = np.load(umap_2d_cache_file)
+        if os.path.exists(cache_file):
+            print(f"Loading {method.upper()} results from cache: {cache_file}")
+            reduced_embeddings = np.load(cache_file)
         else:
-            print("Computing 2D UMAP dimensionality reduction...")
-            reducer_2d = UMAP(n_neighbors=15, n_components=2, min_dist=0.1, metric='cosine')
-            self.reduced_embeddings_2d = reducer_2d.fit_transform(self.embeddings)
-            print(f"Saving 2D UMAP results to cache: {umap_2d_cache_file}")
-            np.save(umap_2d_cache_file, self.reduced_embeddings_2d)
+            print(f"Computing {method.upper()} dimensionality reduction...")
             
-        return self.reduced_embeddings_2d
-    
+            if method == 'umap':
+                if supervised and target_column:
+                    # Get target labels and encode them if they're strings
+                    target_labels = self.df[target_column].to_numpy()
+                    if target_labels.dtype == object:  # If labels are strings
+                        encoder = LabelEncoder()
+                        target_labels = encoder.fit_transform(target_labels)
+                    
+                    reducer = UMAP(
+                        n_components=n_components,
+                        n_neighbors=kwargs.get('n_neighbors', 15),
+                        min_dist=kwargs.get('min_dist', 0.1),
+                        metric=kwargs.get('metric', 'cosine'),
+                        target_metric='categorical',
+                        target_weight=kwargs.get('target_weight', 0.5)
+                    )
+                    reduced_embeddings = reducer.fit_transform(self.embeddings, y=target_labels)
+                else:
+                    reducer = UMAP(
+                        n_components=n_components,
+                        n_neighbors=kwargs.get('n_neighbors', 15),
+                        min_dist=kwargs.get('min_dist', 0.1),
+                        metric=kwargs.get('metric', 'cosine')
+                    )
+                    reduced_embeddings = reducer.fit_transform(self.embeddings)
+            else:  # PCA
+                reducer = PCA(n_components=n_components)
+                reduced_embeddings = reducer.fit_transform(self.embeddings)
+            
+            print(f"Saving {method.upper()} results to cache: {cache_file}")
+            np.save(cache_file, reduced_embeddings)
+            
+        # Store the reduced embeddings
+        if n_components == 3:
+            self.reduced_embeddings_3d = reduced_embeddings
+        else:
+            self.reduced_embeddings_2d = reduced_embeddings
+            
+        return reduced_embeddings
+
     def get_top_languages(self, n=20):
         """Get the top n most frequent languages in the dataset."""
-        language_counts = self.df.group_by('language_name').agg(pl.len()).sort('count', descending=True)
+        language_counts = self.df.group_by('language_name').agg(pl.len()).sort('len', descending=True)
         return language_counts.head(n)['language_name'].to_list()
     
     def get_top_tasks(self, n=10):
         """Get the top n most frequent tasks in the dataset."""
-        task_counts = self.df.group_by('task_name').agg(pl.len()).sort('count', descending=True)
+        task_counts = self.df.group_by('task_name').agg(pl.len()).sort('len', descending=True)
         return task_counts.head(n)['task_name'].to_list()
     
-    def visualize_3d_by_language(self, output_file='code_embeddings_3d.png'):
-        """Create a 3D visualization of code embeddings colored by language."""
-        if self.reduced_embeddings_3d is None:
-            self.apply_umap_3d()
+    def visualize_3d_by_language(
+        self,
+        n_languages: int = 20,
+        method: Literal['umap', 'pca'] = 'umap',
+        supervised: bool = False,
+        target_column: str = 'language_name'
+    ):
+        """
+        Create a 3D visualization of embeddings colored by programming language.
         
-        # Select subset of popular languages
-        top_languages = self.get_top_languages()
-        language_mask = self.df['language_name'].is_in(top_languages)
-        filtered_df = self.df.filter(language_mask)
+        Args:
+            n_languages: Number of top languages to include
+            method: Dimensionality reduction method ('umap' or 'pca')
+            supervised: Whether to use supervised reduction
+            target_column: Column to use for supervised reduction
+        """
+        # Get top languages
+        top_languages = self.get_top_languages(n_languages)
         
-        # Get the indices where language_mask is True
-        language_indices = np.where(language_mask.to_numpy())[0]
-        filtered_embeddings = self.reduced_embeddings_3d[language_indices]
+        # Apply dimensionality reduction
+        reduced_embeddings = self.reduce_dimensions(
+            n_components=3,
+            method=method,
+            supervised=supervised,
+            target_column=target_column
+        )
         
-        # Create a DataFrame for visualization
+        # Create a DataFrame with reduced embeddings and language info
         viz_df = pl.DataFrame({
-            'x': filtered_embeddings[:, 0],
-            'y': filtered_embeddings[:, 1],
-            'z': filtered_embeddings[:, 2],
-            'language': filtered_df['language_name'],
-            'task': filtered_df['task_name']
-        })
+            'x': reduced_embeddings[:, 0],
+            'y': reduced_embeddings[:, 1],
+            'z': reduced_embeddings[:, 2],
+            'language': self.df['language_name']
+        }).filter(pl.col('language').is_in(top_languages))
         
-        # 3D visualization with matplotlib
-        print("Creating 3D visualization...")
-        fig = plt.figure(figsize=(14, 12))
+        # Create 3D scatter plot
+        fig = plt.figure(figsize=(15, 12))
         ax = fig.add_subplot(111, projection='3d')
         
-        # Create a color palette for languages
-        unique_languages = viz_df['language'].unique().to_list()
-        palette = sns.color_palette("husl", len(unique_languages))
-        color_dict = dict(zip(unique_languages, palette))
+        # Create color palette
+        palette = sns.color_palette("husl", n_colors=len(top_languages))
         
-        # Plot each language with a different color
-        for language in unique_languages:
-            group = viz_df.filter(pl.col('language') == language)
+        # Plot each language
+        for i, lang in enumerate(top_languages):
+            lang_data = viz_df.filter(pl.col('language') == lang)
+            
             ax.scatter(
-                group['x'].to_numpy(),
-                group['y'].to_numpy(),
-                group['z'].to_numpy(),
-                label=language,
-                color=color_dict[language],
-                s=30, alpha=0.7
+                lang_data['x'].to_numpy(),
+                lang_data['y'].to_numpy(),
+                lang_data['z'].to_numpy(),
+                label=lang,
+                color=palette[i],
+                alpha=0.6,
+                s=50
             )
         
-        ax.set_xlabel('UMAP Dimension 1')
-        ax.set_ylabel('UMAP Dimension 2')
-        ax.set_zlabel('UMAP Dimension 3')
-        ax.set_title('Code Embeddings by Programming Language (CodeBERT + UMAP)', fontsize=14)
+        ax.set_xlabel('Component 1')
+        ax.set_ylabel('Component 2')
+        ax.set_zlabel('Component 3')
+        ax.set_title(f'3D {method.upper()} Visualization by Language')
         
-        # Add a legend outside the plot
-        ax.legend(loc='upper left', bbox_to_anchor=(1.05, 1), ncol=1)
+        # Add legend
+        ax.legend(bbox_to_anchor=(1.05, 1), loc='upper left')
+        
+        # Save plot
         plt.tight_layout()
-        plt.savefig(output_file, dpi=300, bbox_inches='tight')
+        plt.savefig(
+            os.path.join(
+                self.plot_dir,
+                f"3d_{method}_{'supervised' if supervised else 'unsupervised'}_language_visualization.png"
+            ),
+            bbox_inches='tight',
+            dpi=300
+        )
         plt.close()
+
+    def visualize_2d_by_language(
+        self,
+        n_languages: int = 20,
+        method: Literal['umap', 'pca'] = 'umap',
+        supervised: bool = False,
+        target_column: str = 'language_name'
+    ):
+        """
+        Create a 2D visualization of embeddings colored by programming language.
         
-        print(f"3D visualization saved to {output_file}")
-    
-    def visualize_2d_by_language(self, output_file='code_embeddings_2d.png'):
-        """Create a 2D visualization of code embeddings colored by language."""
-        if self.reduced_embeddings_2d is None:
-            self.apply_umap_2d()
+        Args:
+            n_languages: Number of top languages to include
+            method: Dimensionality reduction method ('umap' or 'pca')
+            supervised: Whether to use supervised reduction
+            target_column: Column to use for supervised reduction
+        """
+        # Get top languages
+        top_languages = self.get_top_languages(n_languages)
         
-        # Select subset of popular languages
-        top_languages = self.get_top_languages()
-        language_mask = self.df['language_name'].is_in(top_languages)
-        filtered_df = self.df.filter(language_mask)
-        
-        # Get the indices where language_mask is True
-        language_indices = np.where(language_mask.to_numpy())[0]
-        filtered_embeddings_2d = self.reduced_embeddings_2d[language_indices]
-        
-        # Create a DataFrame for 2D visualization
-        viz_df_2d = pl.DataFrame({
-            'x': filtered_embeddings_2d[:, 0],
-            'y': filtered_embeddings_2d[:, 1],
-            'language': filtered_df['language_name'],
-            'task': filtered_df['task_name']
-        })
-        
-        # 2D visualization with seaborn - convert to numpy arrays for plotting
-        print("Creating 2D visualization by language...")
-        plt.figure(figsize=(16, 12))
-        
-        # For seaborn plotting, convert to dict of numpy arrays
-        plot_data = {
-            'x': viz_df_2d['x'].to_numpy(),
-            'y': viz_df_2d['y'].to_numpy(),
-            'language': viz_df_2d['language'].to_numpy()
-        }
-        
-        sns.scatterplot(
-            x='x', y='y', hue='language',
-            data=plot_data,
-            palette='husl',
-            s=100,
-            alpha=0.7
+        # Apply dimensionality reduction
+        reduced_embeddings = self.reduce_dimensions(
+            n_components=2,
+            method=method,
+            supervised=supervised,
+            target_column=target_column
         )
         
-        plt.title('Code Embeddings by Programming Language (2D)', fontsize=16)
-        plt.xlabel('UMAP Dimension 1', fontsize=12)
-        plt.ylabel('UMAP Dimension 2', fontsize=12)
-        plt.legend(bbox_to_anchor=(1.05, 1), loc='upper left', ncol=1)
+        # Create a DataFrame with reduced embeddings and language info
+        viz_df = pl.DataFrame({
+            'x': reduced_embeddings[:, 0],
+            'y': reduced_embeddings[:, 1],
+            'language': self.df['language_name']
+        }).filter(pl.col('language').is_in(top_languages))
+        
+        # Create 2D scatter plot
+        plt.figure(figsize=(15, 12))
+        
+        # Create color palette
+        palette = sns.color_palette("husl", n_colors=len(top_languages))
+        
+        # Plot each language
+        for i, lang in enumerate(top_languages):
+            lang_data = viz_df.filter(pl.col('language') == lang)
+            
+            plt.scatter(
+                lang_data['x'].to_numpy(),
+                lang_data['y'].to_numpy(),
+                label=lang,
+                color=palette[i],
+                alpha=0.6,
+                s=50
+            )
+        
+        plt.xlabel('Component 1')
+        plt.ylabel('Component 2')
+        plt.title(f'2D {method.upper()} Visualization by Language')
+        
+        # Add legend
+        plt.legend(bbox_to_anchor=(1.05, 1), loc='upper left')
+        
+        # Save plot
         plt.tight_layout()
-        plt.savefig(output_file, dpi=300, bbox_inches='tight')
+        plt.savefig(
+            os.path.join(
+                self.plot_dir,
+                f"2d_{method}_{'supervised' if supervised else 'unsupervised'}_language_visualization.png"
+            ),
+            bbox_inches='tight',
+            dpi=300
+        )
         plt.close()
-        
-        print(f"2D language visualization saved to {output_file}")
     
-    def visualize_2d_by_task(self, output_file='code_embeddings_by_task.png'):
-        """Create a 2D visualization of code embeddings colored by task."""
-        if self.reduced_embeddings_2d is None:
-            self.apply_umap_2d()
+    def visualize_2d_by_task(
+        self,
+        n_tasks: int = 10,
+        method: Literal['umap', 'pca'] = 'umap',
+        supervised: bool = False,
+        target_column: str = 'task_name'
+    ):
+        """
+        Create a 2D visualization of embeddings colored by task.
         
+        Args:
+            n_tasks: Number of top tasks to include
+            method: Dimensionality reduction method ('umap' or 'pca')
+            supervised: Whether to use supervised reduction
+            target_column: Column to use for supervised reduction
+        """
         # Get top tasks
-        top_tasks = self.get_top_tasks()
-        task_mask = self.df['task_name'].is_in(top_tasks)
-        task_filtered_df = self.df.filter(task_mask)
+        top_tasks = self.get_top_tasks(n_tasks)
         
-        # Get the indices where task_mask is True
-        task_indices = np.where(task_mask.to_numpy())[0]
-        task_filtered_embeddings_2d = self.reduced_embeddings_2d[task_indices]
-        
-        # Create a DataFrame for task visualization
-        task_viz_df = pl.DataFrame({
-            'x': task_filtered_embeddings_2d[:, 0],
-            'y': task_filtered_embeddings_2d[:, 1],
-            'language': task_filtered_df['language_name'],
-            'task': task_filtered_df['task_name']
-        })
-        
-        plt.figure(figsize=(16, 12))
-        
-        # For seaborn plotting, convert to dict of numpy arrays
-        task_plot_data = {
-            'x': task_viz_df['x'].to_numpy(),
-            'y': task_viz_df['y'].to_numpy(),
-            'task': task_viz_df['task'].to_numpy()
-        }
-        
-        print("Creating 2D visualization by task...")
-        sns.scatterplot(
-            x='x', y='y', hue='task',
-            data=task_plot_data,
-            palette='viridis',
-            s=100,
-            alpha=0.7
+        # Apply dimensionality reduction
+        reduced_embeddings = self.reduce_dimensions(
+            n_components=2,
+            method=method,
+            supervised=supervised,
+            target_column=target_column
         )
         
-        plt.title('Code Embeddings by Task (2D)', fontsize=16)
-        plt.xlabel('UMAP Dimension 1', fontsize=12)
-        plt.ylabel('UMAP Dimension 2', fontsize=12)
-        plt.legend(bbox_to_anchor=(1.05, 1), loc='upper left', ncol=1)
-        plt.tight_layout()
-        plt.savefig(output_file, dpi=300, bbox_inches='tight')
-        plt.close()
+        # Create a DataFrame with reduced embeddings and task info
+        viz_df = pl.DataFrame({
+            'x': reduced_embeddings[:, 0],
+            'y': reduced_embeddings[:, 1],
+            'task': self.df['task_name']
+        }).filter(pl.col('task').is_in(top_tasks))
         
-        print(f"Task visualization saved to {output_file}")
+        # Create 2D scatter plot
+        plt.figure(figsize=(15, 12))
+        
+        # Create color palette
+        palette = sns.color_palette("viridis", n_colors=len(top_tasks))
+        
+        # Plot each task
+        for i, task in enumerate(top_tasks):
+            task_data = viz_df.filter(pl.col('task') == task)
+            
+            plt.scatter(
+                task_data['x'].to_numpy(),
+                task_data['y'].to_numpy(),
+                label=task,
+                color=palette[i],
+                alpha=0.6,
+                s=50
+            )
+        
+        plt.xlabel('Component 1')
+        plt.ylabel('Component 2')
+        plt.title(f'2D {method.upper()} Visualization by Task')
+        
+        # Add legend
+        plt.legend(bbox_to_anchor=(1.05, 1), loc='upper left')
+        
+        # Save plot
+        plt.tight_layout()
+        plt.savefig(
+            os.path.join(
+                self.plot_dir,
+                f"2d_{method}_{'supervised' if supervised else 'unsupervised'}_task_visualization.png"
+            ),
+            bbox_inches='tight',
+            dpi=300
+        )
+        plt.close()
     
     def run_pipeline(self):
         """Run the full visualization pipeline."""
         self.load_dataset()
         self.generate_embeddings()
-        self.apply_umap_3d()
-        self.apply_umap_2d()
+
+        # Unsupervised UMAP
         self.visualize_3d_by_language()
         self.visualize_2d_by_language()
         self.visualize_2d_by_task()
+
+        # Supervised UMAP
+        self.visualize_3d_by_language(supervised=True)
+        self.visualize_2d_by_language(supervised=True)
+        self.visualize_2d_by_task(supervised=True)
+
+        # PCA
+        self.visualize_3d_by_language(method='pca')
+        self.visualize_2d_by_language(method='pca')
+        self.visualize_2d_by_task(method='pca')
+
         print("All visualizations generated successfully!")
 
 
 def main():
     """Main function to run the visualization pipeline."""
-    visualizer = CodeEmbeddingVisualizer(
-        'hf://datasets/christopher/rosetta-code/data/train-00000-of-00001-8b4da49264116bbf.parquet',
-        cache_dir='cache'
-    )
+    visualizer = CodeEmbeddingVisualizer(cache_dir='cache')
     visualizer.run_pipeline()
 
 

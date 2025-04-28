@@ -6,12 +6,13 @@
 
 ## External dependencies
 
+- [aichat](https://github.com/sigoden/aichat)
 - [llm-functions](https://github.com/sigoden/llm-functions)
-- [fast-fetch]()
+- [fast-fetch](https://github.com/fastfetch-cli/fastfetch)
 
 ## General
 
-Overall idea
+**Overall idea**
 
 ### Phase 1: Initialization
 1. Select a research paper (code or no code).
@@ -28,3 +29,7 @@ Overall idea
 8. Reference high level pseudo code and consider performance improvements.
 9. Using a fixed recursion depth (number of critique passes), have one agent propose and optimization, and the other critique it.
 10. Ensure correctness after each pass
+
+### Cross language testing
+
+Every program must be able to accept command line arguments which will serve as the entry point for testing.
