@@ -1,0 +1,3 @@
+[submodule "external/llm-functions"]
+	path = external/llm-functions
+	url = https://github.com/sigoden/llm-functions
