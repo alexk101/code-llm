@@ -73,7 +73,7 @@ class CodeEmbeddingVisualizer:
             print("Cache not found. Loading CodeBERT model...")
             tokenizer = AutoTokenizer.from_pretrained("microsoft/codebert-base")
             model = AutoModel.from_pretrained("microsoft/codebert-base")
-            device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+            device = torch.device("cuda" if torch.cuda.is_available() else "mps" if torch.backends.mps.is_available() else "cpu")
 
             if hasattr(torch, 'set_float32_matmul_precision'):
                 torch.set_float32_matmul_precision('high')
