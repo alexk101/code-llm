@@ -40,7 +40,7 @@ class CodeEmbeddingVisualizer:
         self.data_hash = None
         
         # Create cache directory if it doesn't exist
-        os.makedirs(cache_dir, exist_ok=True)
+        os.makedirs(self.cache_dir, exist_ok=True)
         os.makedirs(self.plot_dir, exist_ok=True)
         
     def load_dataset(self):
