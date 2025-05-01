@@ -8,11 +8,45 @@ from marker.converters.pdf import PdfConverter
 from marker.models import create_model_dict
 from marker.output import text_from_rendered
 
-lang_ref ={
-    "fortran": Path("external/stdlib/doc"),
-    "python": Path("external/python-3.12-docs-text"),
-    "cpp": Path("external/cppreference-doc-20250209/reference/en.cppreference.com/w/cpp"),
-    "c": Path("external/cppreference-doc-20250209/reference/en.cppreference.com/w/c"),
+lang_ref = {
+    "fortran": [
+        {
+            "name": "Fortran stdlib",
+            "docs": Path("external/stdlib/doc"),
+            "resource": None,
+            "kind": "markdown",
+            "get": None
+        },
+    ],
+    "python": [
+        {
+            "name": "Python 3.12 Documentation",
+            "docs": Path("external/python-3.12-docs-text"),
+            "resource": "https://docs.python.org/{python_version}/archives/{file_name}",
+            "resource_args": {
+                "python_version": "3.12",
+                "file_name": "python-{python_version}-docs-text.tar.bz2"
+            },
+            "kind": "text",
+            "get": None
+        },
+    ],
+    "cpp": [
+        {
+            "name": "C++ Documentation",
+            "docs": Path("external/cppreference-doc-20250209/reference/en.cppreference.com/w/cpp"),
+            "resources": Path("external/cppreference-doc-20250209/reference/en.cppreference.com/w/cpp/resources"),
+            "kind": "http",
+        }
+    ],
+    "c": [
+        {
+            "name": "C Documentation",
+            "docs": Path("external/cppreference-doc-20250209/reference/en.cppreference.com/w/c"),
+            "resources": Path("external/cppreference-doc-20250209/reference/en.cppreference.com/w/c/resources"),
+            "kind": "http",
+        },
+    ],
 }
 
 to_convert = [
@@ -23,16 +57,14 @@ to_convert = [
 def get_fortran_docs():
     pass
 
-def get_python_docs():
-    python_version = "3.12"
-    file_name = f"python-{python_version}-docs-text.tar.bz2"
-    PYTHON_DOCS = f"https://docs.python.org/{python_version}/archives/{file_name}"
-    response = requests.get(PYTHON_DOCS)
+def get_resource(resource: str, resource_args: dict):
+    response = requests.get(resource.format(**resource_args))
     temp_dir = Path("/tmp")
     output_dir = Path("external")
+    file_name = resource_args["file_name"]
 
-    if (output_dir / f"python-{python_version}-docs-text").exists():
-        print(f"python-{python_version}-docs-text already exists")
+    if (output_dir / file_name).exists():
+        print(f"{file_name} already exists")
         return
 
     with open(temp_dir / file_name, "wb") as f:

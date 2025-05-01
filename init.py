@@ -3,14 +3,25 @@ from pathlib import Path
 import tarfile
 import shutil
 import os
+import subprocess
 
 # Change working directory to the parent directory of the script
 os.chdir(Path(__file__).parent)
 
 def download_fastfetch():
-    if not Path("./external/fastfetch").exists():
+    if not Path("./external/binaries/fastfetch").exists():
+        # Get platform
+        platform = os.uname().machine
+        build = None
+        if platform == "x86_64":
+            build = "linux-amd64"
+        elif platform == "arm64":
+            build = "macos-universal"
+        else:
+            raise ValueError(f"Unsupported platform: {platform}")
+        
         print("Downloading fastfetch...")
-        root = "fastfetch-linux-amd64"
+        root = f"fastfetch-{build}"
         fastfetch = requests.get(f"https://github.com/fastfetch-cli/fastfetch/releases/download/2.41.0/{root}.tar.gz")
 
         tar_path = Path("./external/fastfetch.tar.gz")
@@ -22,8 +33,8 @@ def download_fastfetch():
             tar.extractall(temp_extract_dir, filter='data')
 
         # Move executable to external directory
-        shutil.move(temp_extract_dir / root / 'usr' / 'bin' / 'fastfetch', "./external/fastfetch")
-        os.chmod("./external/fastfetch", 0o755)
+        shutil.move(temp_extract_dir / root / 'usr' / 'bin' / 'fastfetch', "./external/binaries/fastfetch")
+        os.chmod("./external/binaries/fastfetch", 0o755)
 
         # Clean up
         os.remove(Path("./external/fastfetch.tar.gz"))
@@ -31,26 +42,37 @@ def download_fastfetch():
         print("fastfetch already downloaded")
 
 def call_fastfetch():
-    output = os.popen("./external/fastfetch -l none").read()
+    output = subprocess.check_output(["./external/binaries/fastfetch", "-l", "none"], text=True)
     print(output[:-146])
     return output
 
 
 def download_html_to_md():
-    if not Path("./external/html2markdown").exists():
-        target = "https://github.com/JohannesKaufmann/html-to-markdown/releases/download/v2.3.2/html-to-markdown_Linux_x86_64.tar.gz"
+    platform = os.uname().machine
+    build = None
+    if platform == "x86_64":
+        build = "Linux_x86_64"
+    elif platform == "arm64":
+        build = "Darwin_arm64"
+    else:
+        raise ValueError(f"Unsupported platform: {platform}")
+
+    if not Path("./external/binaries/html2markdown").exists():
+        target = f"https://github.com/JohannesKaufmann/html-to-markdown/releases/download/v2.3.2/html-to-markdown_{build}.tar.gz"
         response = requests.get(target)
         temp_dir = Path("/tmp")
-        with open(temp_dir / "html-to-markdown_Linux_x86_64.tar.gz", "wb") as f:
+        with open(temp_dir / f"html-to-markdown_{build}.tar.gz", "wb") as f:
             f.write(response.content)
-        with tarfile.open(temp_dir / "html-to-markdown_Linux_x86_64.tar.gz", "r:gz") as tar:
+        with tarfile.open(temp_dir / f"html-to-markdown_{build}.tar.gz", "r:gz") as tar:
             tar.extractall(temp_dir, filter='data')
-        shutil.move(temp_dir / "html2markdown", "./external/html2markdown")
+        shutil.move(temp_dir / "html2markdown", "./external/binaries/html2markdown")
     else:
         print("html2markdown already downloaded")
 
 
 def main():
+    binaries = Path("./external/binaries")
+    binaries.mkdir(parents=True, exist_ok=True)
     download_fastfetch()
     call_fastfetch()
     download_html_to_md()
