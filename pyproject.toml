@@ -17,6 +17,8 @@ dependencies = [
     "seaborn>=0.13.2",
     "scikit-learn>=1.6.1",
     "marker-pdf[full]>=1.6.2",
+    "networkx>=3.4.2",
+    "pygraphviz>=1.14",
 ]
 
 [tool.uv.sources]

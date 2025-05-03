@@ -19,7 +19,7 @@ from utils.data import get_dataset, DATASET
 class CodeEmbeddingVisualizer:
     """Class to handle embedding and visualization of code datasets."""
     
-    def __init__(self,cache_dir='cache'):
+    def __init__(self,cache_dir='cache', plot_dir='plots'):
         """
         Initialize the visualizer.
         
@@ -32,7 +32,7 @@ class CodeEmbeddingVisualizer:
         plt.rcParams["figure.figsize"] = (12, 10)
         
         self.cache_dir = cache_dir
-        self.plot_dir = 'plots'
+        self.plot_dir = plot_dir
         self.df = None
         self.embeddings = None
         self.reduced_embeddings_3d = None
@@ -454,7 +454,7 @@ class CodeEmbeddingVisualizer:
 
 def main():
     """Main function to run the visualization pipeline."""
-    visualizer = CodeEmbeddingVisualizer(cache_dir='cache')
+    visualizer = CodeEmbeddingVisualizer(cache_dir='../cache', plot_dir='../plots/embeddings')
     visualizer.run_pipeline()
 
 

@@ -3,3 +3,5 @@ cache
 plots
 external/
 .venv
+uv.lock
+*.graphml

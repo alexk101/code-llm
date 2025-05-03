@@ -1,0 +1,36 @@
+fortran:
+  - name: "Fortran stdlib"
+    kind: "markdown"
+    source: "external/stdlib/doc"
+  - name: "Fortran 2018 Standard"
+    resource: "https://j3-fortran.org/doc/year/18/18-007r1.pdf"
+    kind: "pdf"
+    get: true
+
+python:
+  - name: "Python 3.12 Documentation"
+    resource: "https://docs.python.org/{python_version}/archives/python-{python_version}-docs-text.tar.bz2"
+    resource_args:
+      python_version: "3.12"
+    kind: "text"
+    get: true
+
+cpp:
+  - name: "C++ Documentation"
+    resource: "https://github.com/PeterFeicht/cppreference-doc/releases/download/v20250209/{file_name}"
+    resource_args:
+      file_name: "cppreference-doc-20250209.tar.xz"
+      extracted: "cppreference-doc-20250209"
+    target: "{extracted}/reference/en.cppreference.com/w/cpp"
+    kind: "html"
+    get: true
+
+c:
+  - name: "C Documentation"
+    resource: "https://github.com/PeterFeicht/cppreference-doc/releases/download/v20250209/{file_name}"
+    resource_args: 
+      file_name: "cppreference-doc-20250209.tar.xz"
+      extracted: "cppreference-doc-20250209"
+    target: "{extracted}/reference/en.cppreference.com/w/c"
+    kind: "html"
+    get: true

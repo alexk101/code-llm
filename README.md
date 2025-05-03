@@ -1,5 +1,10 @@
 # Code Transliteration and Auto Optimizer
 
+## Dependencies
+
+- Graphviz
+
+
 ## Datasets
 
 - [Rosetta Code](https://huggingface.co/datasets/christopher/rosetta-code)
@@ -46,3 +51,17 @@
 ### Cross language testing
 
 Every program must be able to accept command line arguments which will serve as the entry point for testing.
+
+## Resource Specification
+
+Resources as specified in yaml. The top level is the subject. By default this is the programming language. However, this is theoretically extensible to any subject. For example, if you have a group of resources related to material science, quantum physics, etc. There can be multiple resources per subject. All fetched resources are stored in the `cache/org_resources` directory, each in a directory according to the `name` parameter. The final, markdown resources are contained in `cache/md_resources`.
+
+The yaml has the following structure
+
+- `name`: The name of resource. This will be used to identify the resource.
+- `resource` (Optional): The url to the resource. If the resource is managed through a git submodule, this should not be set and the `source` parameter should be used.
+- `resource_args` (Optional): Variadic parameter that can include any number of parameters which are parsed as `**kwargs` into the `resource` parameter. Useful for simplifying the fetching of resources with common structured resources, such as version numbers or commit ids.
+- `kind`: The kind of resources. Manually specified, since this indicates the actual filetype in the resource, which can be an archive, which when extracted, contains resources of this type. Determines what type of conversion is used. If this is not specified, it is assumed the the resources are already markdown.
+- `source` (Optional): The local path to a resource. Mutually exclusive with the `resource` parameter. If this is a directory and `kind` is specified, it is converted into the cache. If this is a directory and `kind` is not specified, it is symlinked.
+- `get` (Optional): Used with the `resource` parameter to indicate if a resources should be fetched. Ignored when used with the `source` parameter.
+- `target` (Optional): Specifies a subpath within an extracted archive to use as the actual source. This is useful when a single archive contains documentation for multiple languages or subjects. Can include format specifiers like `{filename}` which will be replaced with the downloaded filename.
