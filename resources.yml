@@ -116,15 +116,16 @@ assembly:
     resource: "https://www.amd.com/content/dam/amd/en/documents/processor-tech-docs/programmer-references/40332.pdf"
     kind: "pdf"
     get: true
-  - name: "Intel 64 and IA-32 Architectures Software Developer Manual"
+  - name: "Intel 64 and IA-32 Architectures Software Developer's Manual"
     resource: "https://cdrdv2.intel.com/v1/dl/getContent/671200"
     kind: "pdf"
     get: true
 
 rust:
   - name: "Rust Documentation"
-    source: "external/book/second-edition/src"
-    kind: "markdown"
+    resource: "https://docs.rs/crate/clap/4.0.4/download"
+    kind: "html"
+    get: true
     
 perl:
   - name: "Perl Documentation"

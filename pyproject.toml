@@ -12,13 +12,13 @@ dependencies = [
     "umap-learn>=0.5.7",
     "transformers>=4.51.3",
     "polars>=1.29.0",
-    "numpy>=2.2.5",
     "matplotlib>=3.10.1",
     "seaborn>=0.13.2",
     "scikit-learn>=1.6.1",
     "marker-pdf[full]>=1.6.2",
-    "networkx>=3.4.2",
     "pygraphviz>=1.14",
+    "nodevectors>=0.1.23",
+    "scipy==1.12.0",
 ]
 
 [tool.uv.sources]
@@ -40,3 +40,94 @@ explicit = true
 name = "pytorch-cu128"
 url = "https://download.pytorch.org/whl/cu128"
 explicit = true
+
+[dependency-groups]
+dev = [
+    "autoflake>=2.3.1",
+    "ruff>=0.11.8",
+    "mypy>=1.8.0",
+    "pytest>=7.4.0",
+    "pytest-cov>=4.1.0",
+    "pre-commit>=3.5.0",
+]
+
+[tool.ruff]
+# Exclude a variety of commonly ignored directories
+exclude = [
+    ".git",
+    ".ruff_cache",
+    "__pycache__",
+    "build",
+    "dist",
+    ".venv",
+    "external",
+]
+line-length = 88
+# Target Python 3.12
+target-version = "py312"
+
+[tool.ruff.lint]
+# Enable flake8-bugbear (`B`) rules, Pyflakes (`F`) rules, and more
+select = ["E", "F", "B", "I", "W", "N"]
+ignore = []
+
+[tool.ruff.lint.per-file-ignores]
+# Ignore imported but unused in __init__.py files
+"__init__.py" = ["F401"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["code-llm"]
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+line-ending = "auto"
+
+[tool.autoflake]
+check = false
+in-place = true
+remove-all-unused-imports = true
+remove-unused-variables = true
+ignore-init-module-imports = true
+expand-star-imports = true
+exclude = [
+    ".venv",
+    ".git",
+    "__pycache__",
+    "build",
+    "dist",
+    ".ruff_cache",
+    ".pytest_cache",
+    "*.egg-info",
+    "external",
+]
+
+[tool.mypy]
+python_version = "3.12"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = true
+disallow_incomplete_defs = true
+check_untyped_defs = true
+disallow_untyped_decorators = true
+no_implicit_optional = true
+strict_optional = true
+
+[[tool.mypy.overrides]]
+module = [
+    "torch.*",
+    "transformers.*",
+    "umap.*",
+    "scipy.*",
+    "matplotlib.*",
+    "seaborn.*",
+    "polars.*",
+    "sklearn.*",
+    "nodevectors.*",
+    "tqdm.*",
+]
+ignore_missing_imports = true
+
+[project.scripts]
+lint = "lint:main"
+lint-check = "lint:main --check"
