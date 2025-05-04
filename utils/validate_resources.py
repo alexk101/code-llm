@@ -17,6 +17,7 @@ class ResourceConfig:
     get: bool = False
     file_name: Optional[str] = None
     target: Optional[str] = None  # Path within the extracted archive to use as the source
+    cmd: Optional[str] = None  # Command to generate the documentation
     subject: str = field(default="", init=False)  # Will be set after initialization
     
     def __post_init__(self):
@@ -29,13 +30,13 @@ class ResourceConfig:
         if not re.match(r'^[a-zA-Z0-9\s\-_\.]+$', self.name):
             print(f"Warning: Resource name '{self.name}' contains special characters that might cause path issues")
         
-        # Either source or resource must be specified
-        if self.source is None and self.resource is None:
-            raise ValueError(f"Resource '{self.name}' must specify either 'source' or 'resource'")
+        # Either source, resource, or cmd must be specified
+        if self.source is None and self.resource is None and self.cmd is None:
+            raise ValueError(f"Resource '{self.name}' must specify either 'source', 'resource', or 'cmd'")
             
-        # Source and resource are mutually exclusive
-        if self.source is not None and self.resource is not None:
-            raise ValueError(f"Resource '{self.name}' cannot have both 'source' and 'resource' specified")
+        # Source, resource, and cmd should be mutually exclusive
+        if sum(x is not None for x in [self.source, self.resource, self.cmd]) > 1:
+            raise ValueError(f"Resource '{self.name}' can only have one of 'source', 'resource', or 'cmd' specified")
             
         # Check if source path exists when specified
         if self.source is not None and not Path(self.source).exists():
@@ -52,6 +53,10 @@ class ResourceConfig:
         # If target is specified, ensure it's a string
         if self.target and not isinstance(self.target, str):
             raise ValueError(f"Resource '{self.name}' has invalid target: {self.target}")
+            
+        # If cmd is specified, ensure it's a string
+        if self.cmd and not isinstance(self.cmd, str):
+            raise ValueError(f"Resource '{self.name}' has invalid cmd: {self.cmd}")
             
         # If resource and get are specified, check resource_args used in resource
         if self.resource is not None and self.get:

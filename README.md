@@ -65,3 +65,4 @@ The yaml has the following structure
 - `source` (Optional): The local path to a resource. Mutually exclusive with the `resource` parameter. If this is a directory and `kind` is specified, it is converted into the cache. If this is a directory and `kind` is not specified, it is symlinked.
 - `get` (Optional): Used with the `resource` parameter to indicate if a resources should be fetched. Ignored when used with the `source` parameter.
 - `target` (Optional): Specifies a subpath within an extracted archive to use as the actual source. This is useful when a single archive contains documentation for multiple languages or subjects. Can include format specifiers like `{filename}` which will be replaced with the downloaded filename.
+- `cmd` (Optional): Command to generate the documentation

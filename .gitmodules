@@ -4,3 +4,15 @@
 [submodule "external/stdlib"]
 	path = external/stdlib
 	url = https://github.com/fortran-lang/stdlib.git
+[submodule "external/docs"]
+	path = external/docs
+	url = git@github.com:dotnet/docs.git
+[submodule "external/content"]
+	path = external/content
+	url = git@github.com:mdn/content.git
+[submodule "external/sql-docs"]
+	path = external/sql-docs
+	url = git@github.com:MicrosoftDocs/sql-docs.git
+[submodule "external/book"]
+	path = external/book
+	url = git@github.com:rust-lang/book.git

@@ -34,3 +34,100 @@ c:
     target: "{extracted}/reference/en.cppreference.com/w/c"
     kind: "html"
     get: true
+
+cobol:
+  - name: "GnuCOBOL Documentation"
+    resource: "https://sourceforge.net/projects/gnucobol/files/gnucobol/{cobol_version}/gnucobol-{cobol_version}_bin.tar.xz"
+    resource_args:
+      cobol_version: "3.2"
+      extracted: "gnucobol-3.2_bin"
+    kind: "pdf"
+    target: "{extracted}/usr/local/share/doc/gnucobol"
+    get: true
+
+java:
+  - name: "Java 21 SE Documentation"
+    resource: "https://download.oracle.com/otn_software/java/jdk/21.0.7+8/8fe202bfe6c4465583b1dc9710c4fade/jdk-21.0.7_doc-all.zip"
+    kind: "html"
+    get: true
+
+csharp:
+  - name: "C# Documentation"
+    source: "external/docs/docs/csharp"
+    kind: "markdown"
+
+javascript:
+  - name: "JavaScript Documentation"
+    source: "external/content/files/en-us/web/javascript"
+    kind: "markdown"
+
+go:
+  - name: "Go Documentation"
+    cmd: "(godoc -http=localhost:6060 & SERVER_PID=$!; sleep 3; wget -r -k -p -E -P {SOURCE_DIR} http://localhost:6060/; kill $SERVER_PID)"
+    kind: "html"
+
+visualbasic:
+  - name: "Visual Basic Documentation"
+    source: "external/docs/docs/visual-basic"
+    kind: "markdown"
+
+pascal:
+  - name: "Pascal Documentation"
+    resource: "https://sourceforge.net/projects/freepascal/files/Documentation/{version}/doc-html.zip"
+    resource_args:
+      version: "3.2.2"
+    kind: "html"
+    get: true
+
+sql:
+  - name: "Microsoft SQL Documentation"
+    source: "external/sql-docs/docs"
+    kind: "markdown"
+
+php:
+  - name: "PHP Documentation"
+    resource: "https://www.php.net/distributions/manual/php_manual_en.tar.gz"
+    kind: "html"
+    get: true
+
+r:
+  - name: "R Introduction"
+    resource: "https://cran.r-project.org/doc/manuals/r-release/R-intro.html"
+    kind: "html"
+    get: true
+  - name: "R Language Definition"
+    resource: "https://cran.r-project.org/doc/manuals/r-release/R-lang.html"
+    kind: "html"
+    get: true
+
+ada:
+  - name: "Ada Documentation"
+    resource: "http://www.ada-auth.org/standards/22over/Ada2022-Overview.pdf"
+    kind: "pdf"
+    get: true
+
+matlab:
+  - name: "Octave Documentation"
+    cmd: "wget -r -k -p -E -P {SOURCE_DIR} https://docs.octave.org/latest/"
+    kind: "html"
+
+assembly:
+  - name: "AMD64"
+    resource: "https://www.amd.com/content/dam/amd/en/documents/processor-tech-docs/programmer-references/40332.pdf"
+    kind: "pdf"
+    get: true
+  - name: "Intel 64 and IA-32 Architectures Software Developer Manual"
+    resource: "https://cdrdv2.intel.com/v1/dl/getContent/671200"
+    kind: "pdf"
+    get: true
+
+rust:
+  - name: "Rust Documentation"
+    source: "external/book/second-edition/src"
+    kind: "markdown"
+    
+perl:
+  - name: "Perl Documentation"
+    resource: "https://perl.mines-albi.fr/perl-all-en-5.8.5.pdf"
+    kind: "pdf"
+    get: true

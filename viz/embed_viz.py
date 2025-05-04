@@ -14,25 +14,25 @@ import os
 import hashlib
 from typing import Literal, Optional
 from utils.data import get_dataset, DATASET
-
+from pathlib import Path
 
 class CodeEmbeddingVisualizer:
     """Class to handle embedding and visualization of code datasets."""
     
-    def __init__(self,cache_dir='cache', plot_dir='plots'):
+    def __init__(self,cache_dir='cache/embeddings', plot_dir='plots/embeddings'):
         """
         Initialize the visualizer.
         
         Args:
-            data_path: Path to the dataset
             cache_dir: Directory to store cache files
+            plot_dir: Directory to store plots
         """
         # Set style for better visualizations
         sns.set(style="whitegrid")
         plt.rcParams["figure.figsize"] = (12, 10)
         
-        self.cache_dir = cache_dir
-        self.plot_dir = plot_dir
+        self.cache_dir = Path(cache_dir)
+        self.plot_dir = Path(plot_dir)
         self.df = None
         self.embeddings = None
         self.reduced_embeddings_3d = None
@@ -40,8 +40,8 @@ class CodeEmbeddingVisualizer:
         self.data_hash = None
         
         # Create cache directory if it doesn't exist
-        os.makedirs(self.cache_dir, exist_ok=True)
-        os.makedirs(self.plot_dir, exist_ok=True)
+        self.cache_dir.mkdir(parents=True, exist_ok=True)
+        self.plot_dir.mkdir(parents=True, exist_ok=True)
         
     def load_dataset(self):
         """Load the dataset and compute a hash for caching."""
@@ -62,10 +62,10 @@ class CodeEmbeddingVisualizer:
     
     def generate_embeddings(self):
         """Generate or load cached embeddings for the code samples."""
-        embeddings_cache_file = os.path.join(self.cache_dir, f"embeddings_cache_{self.data_hash}.npy")
+        embeddings_cache_file = self.cache_dir / f"embeddings_cache_{self.data_hash}.npy"
         
         # Check if embeddings cache exists
-        if os.path.exists(embeddings_cache_file):
+        if embeddings_cache_file.exists():
             print(f"Loading embeddings from cache file: {embeddings_cache_file}")
             self.embeddings = np.load(embeddings_cache_file)
         else:
@@ -148,12 +148,9 @@ class CodeEmbeddingVisualizer:
         if n_components not in [2, 3]:
             raise ValueError("n_components must be 2 or 3")
             
-        cache_file = os.path.join(
-            self.cache_dir,
-            f"{method}_{'supervised' if supervised else 'unsupervised'}_{n_components}d_{self.data_hash}.npy"
-        )
+        cache_file = self.cache_dir / f"{method}_{'supervised' if supervised else 'unsupervised'}_{n_components}d_{self.data_hash}.npy"
         
-        if os.path.exists(cache_file):
+        if cache_file.exists():
             print(f"Loading {method.upper()} results from cache: {cache_file}")
             reduced_embeddings = np.load(cache_file)
         else:
@@ -348,10 +345,7 @@ class CodeEmbeddingVisualizer:
         # Save plot
         plt.tight_layout()
         plt.savefig(
-            os.path.join(
-                self.plot_dir,
-                f"2d_{method}_{'supervised' if supervised else 'unsupervised'}_language_visualization.png"
-            ),
+            self.plot_dir / f"2d_{method}_{'supervised' if supervised else 'unsupervised'}_language_visualization.png",
             bbox_inches='tight',
             dpi=300
         )

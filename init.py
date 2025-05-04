@@ -48,16 +48,18 @@ def call_fastfetch():
 
 
 def download_html_to_md():
-    platform = os.uname().machine
-    build = None
-    if platform == "x86_64":
-        build = "Linux_x86_64"
-    elif platform == "arm64":
-        build = "Darwin_arm64"
-    else:
-        raise ValueError(f"Unsupported platform: {platform}")
-
     if not Path("./external/binaries/html2markdown").exists():
+        # Get platform
+        platform = os.uname().machine
+        build = None
+        if platform == "x86_64":
+            build = "Linux_x86_64"
+        elif platform == "arm64":
+            build = "Darwin_arm64"
+        else:
+            raise ValueError(f"Unsupported platform: {platform}")
+        
+        print("Downloading html2markdown...")
         target = f"https://github.com/JohannesKaufmann/html-to-markdown/releases/download/v2.3.2/html-to-markdown_{build}.tar.gz"
         response = requests.get(target)
         temp_dir = Path("/tmp")

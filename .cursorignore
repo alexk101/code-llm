@@ -1,7 +1,7 @@
-cache
+external
 *__pycache__
 plots
 .venv
 uv.lock
 *.graphml
-external/binaries/
+external

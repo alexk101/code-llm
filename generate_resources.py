@@ -9,6 +9,7 @@ from marker.converters.pdf import PdfConverter
 from marker.models import create_model_dict
 from marker.output import text_from_rendered
 from utils.validate_resources import validate_resources
+import os
 
 def get_resource(lang, record):
     """Download and extract a resource."""
@@ -42,6 +43,23 @@ def get_resource(lang, record):
     else:
         file_name = resource_url.split("/")[-1]
     
+    # Simple check to add extension only if file has no extension
+    if record.kind and '.' not in file_name:
+        # Map of kinds to their expected extensions
+        kind_to_extension = {
+            "html": ".html",
+            "pdf": ".pdf",
+            "text": ".txt",
+            "markdown": ".md"
+        }
+        
+        # Get the expected extension for this kind
+        expected_ext = kind_to_extension.get(record.kind.lower())
+        
+        if expected_ext:
+            print(f"Adding {expected_ext} extension to {file_name} based on kind: {record.kind}")
+            file_name = f"{file_name}{expected_ext}"
+    
     local_file = resource_dir / file_name
     
     if local_file.exists():
@@ -60,23 +78,62 @@ def get_resource(lang, record):
     
     print(f"Downloading {resource_url} to {local_file}")
     # Download the resource
-    response = requests.get(resource_url)
+    response = requests.get(resource_url, stream=True)
     response.raise_for_status()  # Raise an exception for HTTP errors
+
+    # Check if we need to modify the file name based on content type (only for files without extension)
+    if record.kind and '.' not in file_name:
+        content_type = response.headers.get('Content-Type', '').lower()
+        
+        # Map content types to expected file extensions
+        content_type_to_ext = {
+            'application/pdf': '.pdf',
+            'text/html': '.html',
+            'text/plain': '.txt',
+            'application/zip': '.zip',
+            'application/x-tar': '.tar',
+            'application/x-gzip': '.tar.gz',
+            'application/x-bzip2': '.tar.bz2',
+            'application/x-xz': '.tar.xz'
+        }
+        
+        for content_type_prefix, ext in content_type_to_ext.items():
+            if content_type.startswith(content_type_prefix):
+                new_file_name = f"{file_name}{ext}"
+                print(f"Changing file name from {file_name} to {new_file_name} based on Content-Type: {content_type}")
+                file_name = new_file_name
+                local_file = resource_dir / file_name
+                break
+    
+    # Download with progress bar for large files
+    total_size = int(response.headers.get('content-length', 0))
+    block_size = 1024  # 1 Kibibyte
+    
     with open(local_file, "wb") as f:
-        f.write(response.content)
+            with tqdm(total=total_size, unit='iB', unit_scale=True, desc=file_name) as t:
+                for data in response.iter_content(block_size):
+                    t.update(len(data))
+                f.write(data)
     
     # Extract archives if necessary
     extensions = {
         ".tar.bz2": "bz2",
         ".tar.gz": "gz",
-        ".tar.xz": "xz"
+        ".tar.xz": "xz",
+        ".zip": "zip"
     }
     
     for ext, format_name in extensions.items():
         if file_name.endswith(ext):
             print(f"Extracting {file_name} to {resource_dir}")
-            with tarfile.open(local_file, f"r:{format_name}") as tar:
-                tar.extractall(resource_dir, filter='data')
+            if ext == ".zip":
+                import zipfile
+                with zipfile.ZipFile(local_file, 'r') as zip_ref:
+                    zip_ref.extractall(resource_dir)
+            else:
+                import tarfile
+                with tarfile.open(local_file, f"r:{format_name}") as tar:
+                    tar.extractall(resource_dir, filter='data')
             break
     
     # If target is specified, check if it exists in the extracted archive
@@ -235,6 +292,114 @@ def process_text_files(lang, record, source_dir):
     
     print(f"Processed {len(text_files)} text files")
 
+def execute_command(lang, record):
+    """Execute a custom command to generate documentation."""
+    if not record.cmd:
+        print(f"No command specified for {record.name}")
+        return None
+        
+    # Create normalized output directory under the subject
+    cache_dir = Path("cache")
+    org_resources_dir = cache_dir / "org_resources" / lang
+    md_resources_dir = cache_dir / "md_resources" / lang
+    dir_name = record.name.lower().replace(" ", "_")
+    
+    # Source directory is in org_resources
+    source_dir = org_resources_dir / dir_name
+    # Output directory is in md_resources
+    output_dir = md_resources_dir / dir_name
+    
+    # Ensure directories exist
+    org_resources_dir.mkdir(parents=True, exist_ok=True)
+    md_resources_dir.mkdir(parents=True, exist_ok=True)
+    
+    # Create any parent directories for the source
+    if not source_dir.exists():
+        source_dir.mkdir(parents=True, exist_ok=True)
+    
+    print(f"Executing command for {record.name}: {record.cmd}")
+    
+    # Create a temporary environment dictionary with useful paths
+    env_vars = {
+        "SOURCE_DIR": str(source_dir),
+        "OUTPUT_DIR": str(output_dir),
+        "CACHE_DIR": str(cache_dir),
+        "ORG_RESOURCES_DIR": str(org_resources_dir),
+        "MD_RESOURCES_DIR": str(md_resources_dir),
+        "RESOURCE_NAME": record.name,
+        "RESOURCE_DIR_NAME": dir_name,
+        "LANG": lang
+    }
+    
+    # Format the command with environment variables if needed
+    formatted_cmd = record.cmd
+    try:
+        # Try to format the command with env vars
+        if '{' in record.cmd and '}' in record.cmd:
+            formatted_cmd = record.cmd.format(**env_vars)
+    except KeyError as e:
+        print(f"Warning: Failed to format command with environment variables: {e}")
+    
+    try:
+        # Execute the command
+        result = subprocess.run(
+            formatted_cmd,
+            shell=True,
+            check=True,
+            capture_output=True,
+            text=True,
+            env={**os.environ, **env_vars}  # Merge with existing environment
+        )
+        
+        print(f"Command executed successfully for {record.name}")
+        if result.stdout:
+            print(f"Command output: {result.stdout[:200]}...")
+        
+        # Handle special case for wget where it creates a localhost:PORT directory structure
+        if "wget" in formatted_cmd:
+            # Look for localhost:PORT directory that wget typically creates
+            localhost_dirs = list(source_dir.glob("localhost*"))
+            if localhost_dirs:
+                print(f"Found wget localhost directory: {localhost_dirs[0]}")
+                # Use the localhost directory as the actual source for conversion
+                source_dir = localhost_dirs[0]
+        
+        # If the command was successful and the kind is specified, perform conversion
+        if record.kind and source_dir.exists():
+            kind = record.kind.lower()
+            
+            # Create output directory
+            if not output_dir.exists():
+                output_dir.mkdir(parents=True, exist_ok=True)
+                
+            # Convert based on kind
+            if kind == "html":
+                convert_to_md(lang, record, source_dir)
+            elif kind == "pdf":
+                pdf_files = source_dir.rglob("*.pdf")
+                for pdf_file in pdf_files:
+                    pdf_to_md(lang, record, pdf_file, output_dir)
+            elif kind == "text":
+                process_text_files(lang, record, source_dir)
+            elif kind == "markdown":
+                # If already markdown, just copy files
+                md_files = list(source_dir.rglob("*.md"))
+                for md_file in md_files:
+                    rel_path = md_file.relative_to(source_dir)
+                    target_path = output_dir / rel_path
+                    target_path.parent.mkdir(parents=True, exist_ok=True)
+                    shutil.copy2(md_file, target_path)
+                print(f"Copied {len(md_files)} markdown files for {record.name}")
+            else:
+                print(f"Warning: Unsupported resource kind: {kind}")
+                
+        # Return the source directory
+        return source_dir
+    except subprocess.CalledProcessError as e:
+        print(f"Error executing command for {record.name}: {e}")
+        print(f"Command stderr: {e.stderr}")
+        return None
+
 def pdf_to_md(lang, record, pdf_path, output_dir):
     """Convert PDF files to markdown."""
     if not pdf_path.exists():
@@ -306,8 +471,12 @@ def main():
                 
             source_dir = None
             
+            # Handle cmd parameter (custom command to generate documentation)
+            if record.cmd:
+                execute_command(lang, record)
+                continue
             # Handle source parameter (local resources)
-            if record.source:
+            elif record.source:
                 source_path = Path(record.source)
                 if source_path.exists():
                     source_dir = source_path
@@ -329,7 +498,7 @@ def main():
             elif record.resource:
                 source_dir = get_resource(lang, record)
             else:
-                print(f"Warning: Resource for {lang} ({record.name}) has no valid source or resource")
+                print(f"Warning: Resource for {lang} ({record.name}) has no valid source, resource, or cmd")
                 continue
                 
             # Skip further processing if we've symlinked the directory
