@@ -1,0 +1,130 @@
+# Language Tools Configuration
+# This file defines how to compile and run code for different programming languages.
+# Each language entry can include:
+#   - extension: File extension for the language
+#   - compile: Command to compile source code (optional for interpreted languages)
+#     - {source}: Placeholder for the source file path
+#     - {output}: Placeholder for the output file path
+#   - run: Command to run the code
+#     - {source}: Placeholder for the source file path
+#     - {output}: Placeholder for the compiled output file path (if applicable)
+
+# C language
+c:
+  extension: c
+  compile: gcc -o {output} {source}
+  run: {output}
+
+# C++
+cpp:
+  extension: cpp
+  compile: g++ -o {output} {source}
+  run: {output}
+
+# Python
+python:
+  extension: py
+  run: python {source}
+
+# Java
+java:
+  extension: java
+  compile: javac {source}
+  run: java -cp $(dirname {source}) $(basename {output})
+
+# JavaScript
+javascript:
+  extension: js
+  run: node {source}
+
+# Go
+go:
+  extension: go
+  compile: go build -o {output} {source}
+  run: {output}
+
+# Rust
+rust:
+  extension: rs
+  compile: rustc -o {output} {source}
+  run: {output}
+
+# Fortran
+fortran:
+  extension: f90
+  compile: gfortran -o {output} {source}
+  run: {output}
+
+# Haskell
+haskell:
+  extension: hs
+  compile: ghc -o {output} {source}
+  run: {output}
+
+# Ruby
+ruby:
+  extension: rb
+  run: ruby {source}
+
+# Php
+php:
+  extension: php
+  run: php {source}
+
+# C#
+csharp:
+  extension: cs
+  compile: csc /out:{output}.exe {source}
+  run: mono {output}.exe
+
+# Swift
+swift:
+  extension: swift
+  compile: swiftc -o {output} {source}
+  run: {output}
+
+# R
+r:
+  extension: r
+  run: Rscript {source}
+
+# Matlab/Octave
+matlab:
+  extension: m
+  run: octave {source}
+
+# COBOL
+cobol:
+  extension: cob
+  compile: cobc -x -o {output} {source}
+  run: {output}
+
+# Assembly
+assembly:
+  extension: asm
+  compile: nasm -f elf64 {source} -o {output}.o && ld {output}.o -o {output}
+  run: {output}
+
+# Visual Basic
+visualbasic:
+  extension: vb
+  compile: vbnc /out:{output}.exe {source}
+  run: mono {output}.exe
+
+# TypeScript
+typescript:
+  extension: ts
+  compile: tsc --outFile {output}.js {source}
+  run: node {output}.js
+
+# Kotlin
+kotlin:
+  extension: kt
+  compile: kotlinc {source} -include-runtime -d {output}.jar
+  run: java -jar {output}.jar
+
+# Pascal
+pascal:
+  extension: pas
+  compile: fpc -o{output} {source}
+  run: {output} 

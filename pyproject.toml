@@ -19,6 +19,9 @@ dependencies = [
     "pygraphviz>=1.14",
     "nodevectors>=0.1.23",
     "scipy==1.12.0",
+    "pymilvus[model]>=2.5.8",
+    "sentence-transformers>=4.1.0",
+    "networkx>=3.4.2",
 ]
 
 [tool.uv.sources]

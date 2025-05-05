@@ -1,0 +1,42 @@
+{
+  "vector_db": {
+    "uri": "./milvus.db",
+    "token": null,
+    "dimension": 384,
+    "metric_type": "COSINE",
+    "passage_collection": "passages",
+    "relation_collection": "relationships"
+  },
+  "graph": {
+    "resources_dir": "cache/md_resources",
+    "graph_cache": "graph_cache.npz",
+    "embeddings_cache": "embeddings_cache.npz"
+  },
+  "embedding": {
+    "model": "local",
+    "model_name": "all-MiniLM-L6-v2",
+    "openai_api_key": null,
+    "batch_size": 32,
+    "context_aware": true
+  },
+  "retriever": {
+    "top_k_semantic": 20,
+    "top_k_final": 5,
+    "hybrid_weight": 0.7,
+    "include_relationships": true
+  },
+  "llm": {
+    "provider": "http",
+    "api_url": "http://127.0.0.1:1234/v1/chat/completions",
+    "model_name": "local-model",
+    "api_key": null,
+    "temperature": 0.7,
+    "max_tokens": 4096,
+    "system_prompt": "You are a helpful AI assistant for programming questions. Your primary goal is to provide accurate and concise answers.",
+    "context_limits": {
+      "max_passage_length": 1000,
+      "max_total_length": 8000,
+      "max_title_length": 100
+    }
+  }
+}

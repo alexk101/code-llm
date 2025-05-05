@@ -10,6 +10,7 @@ from pathlib import Path
 from urllib.parse import urlparse
 
 import csrgraph as cg
+import networkx as nx
 import numpy as np
 from nodevectors import GGVec, Glove, GraRep, Node2Vec, ProNE, SKLearnEmbedder
 from scipy import sparse
@@ -22,14 +23,23 @@ CPU_COUNT = multiprocessing.cpu_count()
 class MarkdownGraph:
     """Class to create and manipulate a graph of markdown files and their links."""
 
-    def __init__(self, resources_dir="cache/md_resources"):
+    def __init__(self, resources_dir="cache/md_resources", backend="csr"):
         """Initialize the graph with the path to the markdown resources.
 
         Args:
             resources_dir: Path to the markdown resources directory
+            backend: Graph backend to use, 'csr' or 'networkx' (default: 'csr')
         """
         self.resources_dir = Path(resources_dir)
         self.graph = None
+        self.networkx_graph = None  # For storing the NetworkX graph
+        self.backend = backend.lower()
+
+        # Validate backend choice
+        if self.backend not in ["csr", "networkx"]:
+            print(f"Warning: Unknown backend '{backend}'. Falling back to 'csr'.")
+            self.backend = "csr"
+
         self.http_node_str = (
             "external-http"  # Special node name for all external HTTP links
         )
@@ -283,7 +293,7 @@ class MarkdownGraph:
 
         return rel_source_str, edges
 
-    def build_graph(self, workers=None, graph_cache="graph_cache.npz"):
+    def build_graph(self, workers=None, graph_cache="graph_cache.npz", backend=None):
         """Build the graph from markdown files and their links by constructing
         a scipy sparse matrix.
 
@@ -294,7 +304,12 @@ class MarkdownGraph:
             workers: Number of worker processes for extraction
                 (None = use all available cores)
             graph_cache: Path to save/load the graph cache
+            backend: Override the graph backend ('csr' or 'networkx')
         """
+        # Set backend if provided
+        if backend:
+            self.backend = backend.lower()
+
         # Check if cached graph exists
         if os.path.exists(graph_cache):
             print(f"Loading graph from cache: {graph_cache}")
@@ -317,6 +332,37 @@ class MarkdownGraph:
 
                 # Create CSRGraph from sparse matrix
                 self.graph = cg.csrgraph(sparse_mat, nodenames=node_names)
+
+                # If using NetworkX backend, also create a NetworkX graph
+                if self.backend == "networkx":
+                    self.networkx_graph = nx.DiGraph()
+                    # Add nodes with metadata
+                    for i, node_name in enumerate(node_names):
+                        node_metadata = {}
+                        if (
+                            "node_types" in cached_data
+                            and "node_subjects" in cached_data
+                        ):
+                            node_metadata = {
+                                "type": cached_data["node_types"][i],
+                                "subject": cached_data["node_subjects"][i],
+                            }
+                        self.networkx_graph.add_node(i, name=node_name, **node_metadata)
+
+                    # Add edges from sparse matrix
+                    for i in range(sparse_mat.shape[0]):
+                        for j in sparse_mat.indices[
+                            sparse_mat.indptr[i] : sparse_mat.indptr[i + 1]
+                        ]:
+                            weight = sparse_mat.data[
+                                sparse_mat.indptr[i] : sparse_mat.indptr[i + 1]
+                            ][
+                                sparse_mat.indices[
+                                    sparse_mat.indptr[i] : sparse_mat.indptr[i + 1]
+                                ]
+                                == j
+                            ][0]
+                            self.networkx_graph.add_edge(i, j, weight=weight)
 
                 # Reconstruct metadata
                 self.node_id_to_str = dict(enumerate(node_names))
@@ -345,8 +391,8 @@ class MarkdownGraph:
                         )
 
                 print(
-                    f"""Successfully loaded graph with {self.graph.nnodes} nodes
-                    from cache"""
+                    "Successfully loaded graph with",
+                    f"{self.graph.nnodes} nodes from cache",
                 )
                 return
             except Exception as e:
@@ -384,6 +430,7 @@ class MarkdownGraph:
         if not all_edges_str:
             print("Warning: No edges found. Creating an empty graph.")
             self.graph = None
+            self.networkx_graph = None
             print("Graph building complete: 0 nodes, 0 edges")
             return
 
@@ -412,32 +459,68 @@ class MarkdownGraph:
         nnodes = len(node_names)
         sparse_mat = sparse.csr_matrix((data, (rows, cols)), shape=(nnodes, nnodes))
 
-        print("Creating CSRGraph from sparse matrix...")
-        try:
-            # Create CSRGraph directly from the sparse matrix
-            self.graph = cg.csrgraph(sparse_mat, nodenames=node_names)
+        # Store node metadata
+        print("Creating node metadata...")
+        self.node_id_to_str = dict(enumerate(node_names))
+        self.node_str_to_id = {name: idx for idx, name in enumerate(node_names)}
+        self.node_id_to_metadata = {}
 
-            # --- Set up metadata for the nodes ---
-            print("Creating node metadata...")
-            self.node_id_to_str = dict(enumerate(node_names))
-            self.node_str_to_id = {name: idx for idx, name in enumerate(node_names)}
-            self.node_id_to_metadata = {}
+        for node_id, node_str in self.node_id_to_str.items():
+            self.node_id_to_metadata[node_id] = self._get_node_metadata(node_str)
 
-            for node_id, node_str in self.node_id_to_str.items():
-                self.node_id_to_metadata[node_id] = self._get_node_metadata(node_str)
+        # Save the graph to cache - always save in CSR format for compatibility
+        print(f"Saving graph to cache: {graph_cache}")
+        self._save_graph_cache(graph_cache, sparse_mat, node_names)
 
-            print(f"Graph building complete: {self.graph.nnodes} nodes")
+        # Create the graph based on the selected backend
+        if self.backend == "networkx":
+            print("Creating NetworkX graph...")
+            try:
+                # Create a NetworkX directed graph
+                self.networkx_graph = nx.DiGraph()
 
-            # Save the graph to cache
-            print(f"Saving graph to cache: {graph_cache}")
-            self._save_graph_cache(graph_cache, sparse_mat, node_names)
+                # Add nodes with metadata
+                for node_id, node_str in self.node_id_to_str.items():
+                    metadata = self.node_id_to_metadata.get(node_id, {})
+                    self.networkx_graph.add_node(node_id, name=node_str, **metadata)
 
-        except Exception as e:
-            print(f"Error creating CSRGraph: {e}")
-            import traceback
+                # Add edges
+                for src, dst in zip(rows, cols, strict=False):
+                    self.networkx_graph.add_edge(src, dst, weight=1.0)
 
-            traceback.print_exc()
-            self.graph = None  # Indicate failure
+                print(
+                    "NetworkX graph created with",
+                    f"{self.networkx_graph.number_of_nodes()} nodes",
+                    f"and {self.networkx_graph.number_of_edges()} edges",
+                )
+
+                # Always create CSR graph as well for compatibility with other code
+                print("Creating CSRGraph from sparse matrix for compatibility...")
+                self.graph = cg.csrgraph(sparse_mat, nodenames=node_names)
+
+            except Exception as e:
+                print(f"Error creating NetworkX graph: {e}")
+                import traceback
+
+                traceback.print_exc()
+
+                # Fall back to CSR graph
+                print("Falling back to CSR graph...")
+                self.backend = "csr"
+
+        # Create CSR graph if needed
+        if self.backend == "csr" or self.graph is None:
+            print("Creating CSRGraph from sparse matrix...")
+            try:
+                # Create CSRGraph directly from the sparse matrix
+                self.graph = cg.csrgraph(sparse_mat, nodenames=node_names)
+                print(f"CSR graph building complete: {self.graph.nnodes} nodes")
+            except Exception as e:
+                print(f"Error creating CSRGraph: {e}")
+                import traceback
+
+                traceback.print_exc()
+                self.graph = None  # Indicate failure
 
     def _save_graph_cache(self, cache_path, sparse_mat, node_names):
         """Save the graph to a cache file for faster loading in the future."""
@@ -720,3 +803,39 @@ class MarkdownGraph:
 
             traceback.print_exc()  # Print detailed traceback
             return None
+
+    def get_edges(self):
+        """Get all edges in the graph.
+
+        Returns:
+            List of (source_id, target_id) tuples representing edges
+        """
+        if self.graph is None and self.networkx_graph is None:
+            print("No graph available. Call build_graph() first.")
+            return []
+
+        # Prefer NetworkX if available
+        if self.backend == "networkx" and self.networkx_graph is not None:
+            return list(self.networkx_graph.edges())
+
+        # Fall back to CSR graph
+        if self.graph is not None:
+            edges = []
+
+            # Try different methods to extract edges based on available attributes
+            if hasattr(self.graph, "mat"):
+                # Get edges from the matrix
+                csr_matrix = self.graph.mat
+                source_indices, target_indices = csr_matrix.nonzero()
+
+                for src, dst in zip(source_indices, target_indices, strict=False):
+                    edges.append((src, dst))
+
+            elif hasattr(self.graph, "src") and hasattr(self.graph, "dst"):
+                # Get edges from src/dst arrays
+                for src, dst in zip(self.graph.src, self.graph.dst, strict=False):
+                    edges.append((src, dst))
+
+            return edges
+
+        return []
