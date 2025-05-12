@@ -58,3 +58,5 @@ coverage.xml
 *.db-wal
 *.db-journal
 *.db-trace
+
+experiment_results/

@@ -16,7 +16,7 @@ c:
   run: {output}
 
 # C++
-cpp:
+c++:
   extension: cpp
   compile: g++ -o {output} {source}
   run: {output}
@@ -43,28 +43,11 @@ go:
   compile: go build -o {output} {source}
   run: {output}
 
-# Rust
-rust:
-  extension: rs
-  compile: rustc -o {output} {source}
-  run: {output}
-
 # Fortran
 fortran:
   extension: f90
   compile: gfortran -o {output} {source}
   run: {output}
-
-# Haskell
-haskell:
-  extension: hs
-  compile: ghc -o {output} {source}
-  run: {output}
-
-# Ruby
-ruby:
-  extension: rb
-  run: ruby {source}
 
 # Php
 php:
@@ -72,10 +55,10 @@ php:
   run: php {source}
 
 # C#
-csharp:
+c#:
   extension: cs
-  compile: csc /out:{output}.exe {source}
-  run: mono {output}.exe
+  compile: csc /out:{output} {source}
+  run: mono {output}
 
 # Swift
 swift:
@@ -96,35 +79,30 @@ matlab:
 # COBOL
 cobol:
   extension: cob
-  compile: cobc -x -o {output} {source}
+  compile: gcobol -x -o {output} {source}
   run: {output}
 
 # Assembly
-assembly:
+assembly (x86):
   extension: asm
-  compile: nasm -f elf64 {source} -o {output}.o && ld {output}.o -o {output}
+  compile: yasm -f elf64 {source} -o {output}.o && ld {output}.o -o {output}
   run: {output}
-
-# Visual Basic
-visualbasic:
-  extension: vb
-  compile: vbnc /out:{output}.exe {source}
-  run: mono {output}.exe
-
-# TypeScript
-typescript:
-  extension: ts
-  compile: tsc --outFile {output}.js {source}
-  run: node {output}.js
-
-# Kotlin
-kotlin:
-  extension: kt
-  compile: kotlinc {source} -include-runtime -d {output}.jar
-  run: java -jar {output}.jar
 
 # Pascal
 pascal:
   extension: pas
   compile: fpc -o{output} {source}
   run: {output} 
+
+# Perl
+perl:
+  extension: pl
+  compile: perl {source}
+  run: perl {source}
+
+# Ada
+ada:
+  extension: ada
+  compile: gnat make {source} -o {output}
+  run: {output}
+

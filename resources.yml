@@ -120,12 +120,6 @@ assembly:
     resource: "https://cdrdv2.intel.com/v1/dl/getContent/671200"
     kind: "pdf"
     get: true
-
-rust:
-  - name: "Rust Documentation"
-    resource: "https://docs.rs/crate/clap/4.0.4/download"
-    kind: "html"
-    get: true
     
 perl:
   - name: "Perl Documentation"

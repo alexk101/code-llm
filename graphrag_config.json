@@ -27,7 +27,7 @@
   },
   "llm": {
     "provider": "http",
-    "api_url": "http://127.0.0.1:1234/v1/chat/completions",
+    "api_url": "http://localhost:1234/v1/chat/completions",
     "model_name": "local-model",
     "api_key": null,
     "temperature": 0.7,

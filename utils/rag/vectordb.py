@@ -424,7 +424,7 @@ class MilvusManager:
                 expr = " && ".join(conditions)
 
         try:
-            # Only pass expr if it's not None to avoid the multiple values error
+            # Create base search arguments
             search_args = {
                 "collection_name": self.passage_collection,
                 "data": [query_embedding.tolist()],
@@ -434,9 +434,28 @@ class MilvusManager:
                 "output_fields": ["node_id", "title", "text", "subject", "node_type"],
             }
 
+            # Only add expr if it's not None and not in search_params already
+            # This prevents duplicate 'expr' arguments
             if expr is not None:
-                search_args["expr"] = expr
+                # Check if 'expr' is already in search_params to avoid duplication
+                if "params" in search_params and "expr" in search_params["params"]:
+                    # Merge with existing expression if needed
+                    print(
+                        (
+                            "Warning: 'expr' already exists in search_params. "
+                            "Merging filters."
+                        )
+                    )
+                    current_expr = search_params["params"]["expr"]
+                    search_params["params"]["expr"] = f"({current_expr}) && ({expr})"
+                else:
+                    # Add to outer arguments
+                    search_args["expr"] = expr
 
+            # Debug log to show exactly what we're sending to Milvus
+            print(f"Executing Milvus search with: {search_args}")
+
+            # Execute the search
             results = self.client.search(**search_args)
 
             # Format the results
@@ -462,13 +481,14 @@ class MilvusManager:
             return []
 
     def search_relationships(
-        self, query_embedding: List[float], top_k: int = 20
+        self, query_embedding: List[float], top_k: int = 20, filters: Dict = None
     ) -> List[Dict]:
         """Search for relationships by vector similarity.
 
         Args:
             query_embedding: The query embedding vector
             top_k: Number of results to return
+            filters: Optional filters to apply
 
         Returns:
             List of relationship results
@@ -502,21 +522,61 @@ class MilvusManager:
 
         search_params = {"metric_type": self.metric_type, "params": self.search_params}
 
+        # Build filter expression if provided
+        expr = None
+        if filters:
+            conditions = []
+            for key, value in filters.items():
+                if isinstance(value, list):
+                    # Handle IN operator
+                    values_str = ", ".join([f'"{v}"' for v in value])
+                    conditions.append(f"{key} in [{values_str}]")
+                else:
+                    # Handle equality
+                    conditions.append(f'{key} == "{value}"')
+
+            if conditions:
+                expr = " && ".join(conditions)
+
         try:
-            results = self.client.search(
-                collection_name=self.relation_collection,
-                data=[query_embedding.tolist()],
-                anns_field="embedding",
-                params=search_params,
-                limit=top_k,
-                output_fields=[
+            # Create base search arguments
+            search_args = {
+                "collection_name": self.relation_collection,
+                "data": [query_embedding.tolist()],
+                "anns_field": "embedding",
+                "params": search_params,
+                "limit": top_k,
+                "output_fields": [
                     "source_id",
                     "target_id",
                     "relation_type",
                     "weight",
                     "description",
                 ],
-            )
+            }
+
+            # Only add expr if it's not None and not in search_params already
+            # This prevents duplicate 'expr' arguments
+            if expr is not None:
+                # Check if 'expr' is already in search_params to avoid duplication
+                if "params" in search_params and "expr" in search_params["params"]:
+                    # Merge with existing expression if needed
+                    print(
+                        (
+                            "Warning: 'expr' already exists in search_params. "
+                            "Merging filters."
+                        )
+                    )
+                    current_expr = search_params["params"]["expr"]
+                    search_params["params"]["expr"] = f"({current_expr}) && ({expr})"
+                else:
+                    # Add to outer arguments
+                    search_args["expr"] = expr
+
+            # Debug log to show exactly what we're sending to Milvus
+            print(f"Executing Milvus relationship search with: {search_args}")
+
+            results = self.client.search(**search_args)
 
             # Format the results
             relationships = []

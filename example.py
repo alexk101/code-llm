@@ -26,8 +26,8 @@ def main():
     parser.add_argument(
         "--llm-api",
         type=str,
-        default="http://127.0.0.1:1234/v1/chat/completions",
-        help="LLM API endpoint (default: http://127.0.0.1:1234/v1/chat/completions)",
+        default="http://localhost:1234/v1/chat/completions",
+        help="LLM API endpoint (default: http://localhost:1234/v1/chat/completions)",
     )
     parser.add_argument(
         "--graph-backend",
@@ -48,12 +48,11 @@ def main():
         cfg = rag.config
         cfg.save()
 
-    # Update LLM API URL if specified
-    if args.llm_api:
-        rag.config.config["llm"]["provider"] = "http"
-        rag.config.config["llm"]["api_url"] = args.llm_api
-        rag.config.save()
-        print(f"Updated LLM API URL to: {args.llm_api}")
+    # Always set HTTP provider for LLM
+    rag.config.config["llm"]["provider"] = "http"
+    rag.config.config["llm"]["api_url"] = args.llm_api
+    rag.config.save()
+    print(f"Using LLM API URL: {args.llm_api}")
 
     # Rebuild the index if requested
     if args.index:
@@ -92,7 +91,7 @@ def execute_query(rag, query, language=None):
     print("-----------------")
     for i, passage in enumerate(retrieval_results.get("passages", [])):
         print(
-            f"{i + 1}. {passage['title']}({passage['subject']}, {passage['node_type']})"
+            f"{i + 1}.{passage['title']} ({passage['subject']}, {passage['node_type']})"
         )
         if len(passage.get("text", "")) > 200:
             print(f"   {passage['text'][:200]}...")

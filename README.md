@@ -145,6 +145,108 @@ success, output = tools.run(code, "python", args=["10"])
 results = tools.test(code, "python", test_cases)
 ```
 
+## Experiment Module
+
+The experiment module provides a framework for conducting code translation experiments using the Rosetta Code dataset and language tools. It automates the workflow of:
+
+1. Collecting examples from Rosetta Code
+2. Generating test cases for each problem
+3. Creating pseudocode from source language implementations
+4. Translating pseudocode to target languages
+5. Evaluating the correctness of translations
+6. Generating reports with metrics
+
+The module can optionally enhance translations with GraphRAG, which provides relevant documentation and code examples from the target language to improve translation quality.
+
+### Language Support
+
+The experiment uses languages from the TIOBE index (retrieved via `get_language_info()`) that are also verified to be supported by our language tools configuration through the `verify_language_tools()` validation function. This ensures that all languages used in the experiment are properly configured for compilation and execution.
+
+### Local LLM Integration
+
+The experiment framework uses a local HTTP server (default: http://127.0.0.1:1234/v1/chat/completions) for all LLM operations, making it compatible with locally hosted models. This eliminates the need for external API services and enables fully self-contained experimentation.
+
+### Running Experiments
+
+You can run experiments using the `run_experiment.py` script:
+
+```bash
+# Run a basic experiment with default settings
+python run_experiment.py --name my_experiment
+
+# Customize the experiment
+python run_experiment.py --name custom_exp --source-language Python --target-languages C Java JavaScript --num-problems 10
+
+# Use GraphRAG for enhanced translation with documentation context
+python run_experiment.py --name graphrag_exp --use-graphrag --target-languages C++ Rust Go
+
+# Use a different LLM API endpoint
+python run_experiment.py --name local_llm --llm-api http://localhost:8000/v1/chat/completions
+```
+
+Available options:
+
+- `--name`: Experiment name (default: timestamp-based name)
+- `--output-dir`: Directory for experiment results (default: `experiment_results`)
+- `--num-problems`: Number of problems to include (default: 5)
+- `--min-implementations`: Minimum implementations required for a problem (default: 5)
+- `--source-language`: Source language for translation (default: Python)
+- `--target-languages`: Target languages to translate to (default: all supported languages)
+- `--skip-pseudocode`: Skip the pseudocode generation step
+- `--use-graphrag`: Enable GraphRAG to enhance translation with documentation context
+- `--top-n-languages`: Number of top languages to include (default: 20)
+- `--llm-api`: URL for the LLM API server (default: http://127.0.0.1:1234/v1/chat/completions)
+
+### Experiment Results
+
+The experiment generates comprehensive results including:
+- Problem descriptions and implementations
+- Generated test cases for each problem
+- Pseudocode generated from source language
+- Translations to target languages
+- Compilation success rates for each language
+- Test case pass rates for each language
+- A detailed report with visualizations
+
+Results are stored in the specified output directory with the experiment name.
+
+### Programmatic Usage
+
+You can also use the experiment module programmatically:
+
+```python
+from experiment import Experiment
+
+# Initialize experiment
+exp = Experiment(
+    experiment_name="my_experiment",
+    output_dir="experiment_results",
+    llm_api_url="http://127.0.0.1:1234/v1/chat/completions"  # Use local LLM server
+)
+
+# Run complete experiment
+metrics = exp.run_full_experiment(
+    num_problems=5,
+    source_language="Python",
+    target_languages=["C", "Java", "JavaScript"],
+    use_pseudocode=True,
+    use_graphrag=True  # Enable GraphRAG enhancement
+)
+
+# Or run individual phases
+problems = exp.generate_test_set(num_problems=5)
+test_cases = exp.generate_test_cases(problems)
+pseudocode = exp.generate_pseudocode(problems, source_language="Python")
+translations = exp.translate_to_languages(
+    problems, 
+    target_languages=["C", "Java"], 
+    pseudocode=pseudocode,
+    use_graphrag=True  # Enable GraphRAG enhancement
+)
+results = exp.evaluate_translations(problems, translations, test_cases)
+report = exp.generate_report()
+```
+
 ## GraphRAG Implementation
 
 We've implemented a Graph RAG (Retrieval Augmented Generation) system that combines knowledge graphs with vector embeddings to enhance the context retrieval process for LLMs.
@@ -204,3 +306,67 @@ response = rag.generate("What's the difference between merge sort and quicksort?
    - Returns the generated response
 
 This implementation allows for more accurate context retrieval by combining the strengths of vector search (semantic similarity) with graph-based knowledge representation (relationships and structure).
+
+```mermaid
+flowchart TD
+    subgraph "Phase 1: Initialization"
+        A[Select Research Paper] --> B[Generate Test Cases]
+        B --> C[Create Performance Evaluation Framework]
+        C --> D[Generate High-Level Pseudocode]
+        D --> E[Hardware Assessment]
+    end
+    
+    subgraph "Phase 2: Code Translation"
+        E --> F[Choose Target Language]
+        F --> G[Translate Codebase]
+        G --> H[Run Initial Implementation]
+        H --> I{Tests Pass?}
+        I -->|No| G
+        I -->|Yes| J
+    end
+    
+    subgraph "Phase 3: Optimization"
+        J[Reference Pseudocode] --> K[Agent Proposes Optimization]
+        K --> L[Second Agent Critiques]
+        L --> M[Implement Changes]
+        M --> N{Passes Tests?}
+        N -->|No| K
+        N -->|Yes| O[Final Optimized Code]
+    end
+```
+
+```mermaid
+flowchart LR
+    subgraph "Indexing"
+        A[Parse Documentation] --> B[Build Knowledge Graph]
+        B --> C[Generate Embeddings]
+        C --> D[Store in Vector Database]
+    end
+    
+    subgraph "Retrieval"
+        E[Query Input] --> F[Vector Similarity Search]
+        F --> G[Retrieve Graph Relationships]
+        G --> H[Rerank Results]
+        H --> I[Return Relevant Context]
+    end
+    
+    subgraph "Generation"
+        I --> J[Format Context for LLM]
+        J --> K[Send to Local LLM]
+        K --> L[Return Response]
+    end
+```
+
+```mermaid
+flowchart TD
+    A[Initialize Experiment] --> B[Collect Problems from Rosetta Code]
+    B --> C[Generate Test Cases]
+    C --> D[Create Pseudocode from Source Language]
+    D --> E{Use GraphRAG?}
+    E -->|Yes| F[Enhance with Documentation Context]
+    E -->|No| G[Standard Translation]
+    F --> H[Translate to Target Languages]
+    G --> H
+    H --> I[Evaluate Translations]
+    I --> J[Generate Reports with Metrics]
+```
