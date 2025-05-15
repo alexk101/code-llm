@@ -6,6 +6,165 @@
 
 For our experiments, we utilize the Rosetta Code dataset, which provides implementations of the same algorithms across multiple programming languages. We've converted this resource into a structured database to facilitate algorithmic translation and optimization experiments. Our focus is primarily on the TIOBE top 20 programming languages, which represent the most widely used languages in the industry.
 
+## Getting Started
+
+This section provides step-by-step instructions to set up and run the project from start to finish.
+
+### Prerequisites
+
+- Python 3.12 or higher
+- Git
+- Linux
+- A local LLM server (default: running on http://127.0.0.1:1234/v1/chat/completions)
+- Compilers/interpreters for languages you want to test (as defined in `language_tools.yaml`)
+- [uv](https://github.com/astral-sh/uv)
+
+### Local LLM
+
+You can initialize any llm local, as long as it has an http endpoint for chat completions. Ones which will work out of the box
+
+1. [Llamacpp](https://github.com/ggml-org/llama.cpp)
+2. [LMstudio](https://lmstudio.ai/) (user friendly graphical llamacpp)
+
+The model with which this was tested was Gemma-3 27b.
+
+### Installation
+
+1. Clone the repository and initialize submodules:
+   ```bash
+   git clone https://github.com/your-username/code-llm.git
+   cd code-llm
+   git submodule update --init --recursive
+   ```
+
+2. Create and activate a virtual environment:
+   ```bash
+   uv python install
+   uv sync
+   source .venv/bin/activate
+   ```
+
+### Generating Resources
+
+1. Generate documentation resources for GraphRAG:
+   ```bash
+   python generate_resources.py
+   ```
+   This will fetch and process documentation for supported programming languages and store them in the `cache/` directory.
+
+### Initializing GraphRAG Database
+
+1. Initialize and build the GraphRAG knowledge graph:
+   ```bash
+   python -c "from utils.rag import GraphRAG; rag = GraphRAG(); rag.index()"
+   ```
+   
+   This command:
+   - Processes the documentation in the `cache/` directory
+   - Builds a knowledge graph from the documentation
+   - Generates embeddings for the nodes
+   - Stores the graph and embeddings in the Milvus database
+
+2. You can verify the initialization by running a test query:
+   ```bash
+   python -c "from utils.rag import GraphRAG; rag = GraphRAG(); print(rag.query('How to create an array in Python'))"
+   ```
+
+### Visualization Tools
+
+The project includes visualization tools in the `viz` module to help you understand the data and results better.
+
+#### Code Embedding Visualization
+
+The `embed_viz.py` script visualizes code embeddings across different programming languages and tasks:
+
+```bash
+# Generate embeddings and visualize in 2D and 3D
+python -m viz.embed_viz
+
+# Customize the visualization
+python -m viz.embed_viz --method umap --n-languages 10 --supervised
+```
+
+This will generate visualizations showing how different programming languages and tasks cluster in the embedding space, using techniques like UMAP and PCA. Visualizations are stored in the `plots/embeddings` directory.
+
+#### Knowledge Graph Visualization
+
+The `graph_viz.py` script visualizes the knowledge graph used by GraphRAG:
+
+```bash
+# Generate and visualize the knowledge graph
+python -m viz.graph_viz
+
+# Customize with different reduction methods
+python -m viz.graph_viz --reduction-method tsne
+```
+
+This creates visualizations of the documentation knowledge graph, showing relationships between different programming languages and concepts. Visualizations are stored in the `plots/graph_emb` directory with different dimensionality reduction techniques (UMAP, t-SNE, PCA).
+
+### Running Experiments
+
+1. Run a basic experiment:
+   ```bash
+   python run_experiment.py --name my_first_experiment
+   ```
+
+2. For a more customized experiment:
+   ```bash
+   python run_experiment.py --name custom_exp \
+     --source-language Python \
+     --target-languages C Java JavaScript \
+     --num-problems 5 \
+     --use-graphrag
+   ```
+
+3. View results in the `experiment_results/` directory.
+
+### Visualizing Results
+
+To generate visualizations of experiment results:
+```bash
+python cli.py --visualize experiment_results/your_experiment_name
+```
+
+### End-to-End Workflow
+
+A complete workflow consists of these steps:
+
+1. **Setup**: Install dependencies and generate resources
+   ```bash
+   # After installation steps above
+   python generate_resources.py
+   ```
+
+2. **Run experiment**: Translate code from one language to others
+   ```bash
+   python run_experiment.py --name full_workflow \
+     --source-language Python \
+     --target-languages C Java JavaScript Rust \
+     --num-problems 10 \
+     --use-graphrag
+   ```
+
+3. **Evaluate results**: Check the experiment output
+   ```bash
+   # Results are in experiment_results/full_workflow/
+   # You can view metrics.json for performance summary
+   ```
+
+4. **Visualize**: Generate plots from results
+   ```bash
+   python cli.py --visualize experiment_results/full_workflow
+   ```
+
+5. **Test specific translations**: Use the CLI to test individual implementations
+   ```bash
+   # Test a translated implementation
+   python cli.py experiment_results/full_workflow/translations_graphrag/fibonacci/c/implementation.c \
+     --language c \
+     --test experiment_results/full_workflow/test_cases/fibonacci/test_cases.json
+   ```
+
 ## Proposed External dependencies
 
 - [fast-fetch](https://github.com/fastfetch-cli/fastfetch)
@@ -265,7 +424,7 @@ We've implemented a Graph RAG (Retrieval Augmented Generation) system that combi
 - `config.py` - Configuration settings and management
 - `vectordb.py` - Milvus vector database operations
 - `graph_processor.py` - Knowledge graph construction and querying
-- `embedding.py` - Vector embedding generation and management 
+- `embedding.py` - Vector embedding generation and management
 - `retriever.py` - Hybrid retrieval logic combining vector search with graph relationships
 
 ### Usage
@@ -306,67 +465,3 @@ response = rag.generate("What's the difference between merge sort and quicksort?
    - Returns the generated response
 
 This implementation allows for more accurate context retrieval by combining the strengths of vector search (semantic similarity) with graph-based knowledge representation (relationships and structure).
-
-```mermaid
-flowchart TD
-    subgraph "Phase 1: Initialization"
-        A[Select Research Paper] --> B[Generate Test Cases]
-        B --> C[Create Performance Evaluation Framework]
-        C --> D[Generate High-Level Pseudocode]
-        D --> E[Hardware Assessment]
-    end
-    
-    subgraph "Phase 2: Code Translation"
-        E --> F[Choose Target Language]
-        F --> G[Translate Codebase]
-        G --> H[Run Initial Implementation]
-        H --> I{Tests Pass?}
-        I -->|No| G
-        I -->|Yes| J
-    end
-    
-    subgraph "Phase 3: Optimization"
-        J[Reference Pseudocode] --> K[Agent Proposes Optimization]
-        K --> L[Second Agent Critiques]
-        L --> M[Implement Changes]
-        M --> N{Passes Tests?}
-        N -->|No| K
-        N -->|Yes| O[Final Optimized Code]
-    end
-```
-
-```mermaid
-flowchart LR
-    subgraph "Indexing"
-        A[Parse Documentation] --> B[Build Knowledge Graph]
-        B --> C[Generate Embeddings]
-        C --> D[Store in Vector Database]
-    end
-    
-    subgraph "Retrieval"
-        E[Query Input] --> F[Vector Similarity Search]
-        F --> G[Retrieve Graph Relationships]
-        G --> H[Rerank Results]
-        H --> I[Return Relevant Context]
-    end
-    
-    subgraph "Generation"
-        I --> J[Format Context for LLM]
-        J --> K[Send to Local LLM]
-        K --> L[Return Response]
-    end
-```
-
-```mermaid
-flowchart TD
-    A[Initialize Experiment] --> B[Collect Problems from Rosetta Code]
-    B --> C[Generate Test Cases]
-    C --> D[Create Pseudocode from Source Language]
-    D --> E{Use GraphRAG?}
-    E -->|Yes| F[Enhance with Documentation Context]
-    E -->|No| G[Standard Translation]
-    F --> H[Translate to Target Languages]
-    G --> H
-    H --> I[Evaluate Translations]
-    I --> J[Generate Reports with Metrics]
-```
